@@ -44,6 +44,7 @@ type TraceType = Omit<
 
 interface TraceDataContextValue {
   trace: TraceType;
+  sessionTraces?: Parameters<typeof buildTraceUiData>[2];
   observations: ObservationReturnTypeWithMetadata[];
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   mergedScores: WithStringifiedMetadata<ScoreDomain>[];
@@ -94,6 +95,7 @@ export function useTraceData(): TraceDataContextValue {
 
 interface TraceDataProviderProps {
   trace: TraceType;
+  sessionTraces?: Parameters<typeof buildTraceUiData>[2];
   observations: ObservationReturnTypeWithMetadata[];
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
@@ -111,6 +113,7 @@ interface TraceDataProviderProps {
  */
 export function TraceDataProvider({
   trace,
+  sessionTraces,
   observations: rawObservations,
   serverScores,
   corrections,
@@ -131,14 +134,15 @@ export function TraceDataProvider({
   // differ, so the timeline and the opened detail panel could silently show
   // different data. No-op (same reference) for well-formed traces.
   const observations = useMemo(
-    () => dedupeObservationsById(rawObservations),
-    [rawObservations],
+    () =>
+      sessionTraces ? rawObservations : dedupeObservationsById(rawObservations),
+    [rawObservations, sessionTraces],
   );
 
   // Build full tree (no level filtering) — only rebuilds when data changes
   const uiData = useMemo(() => {
-    return buildTraceUiData(trace, observations);
-  }, [trace, observations]);
+    return buildTraceUiData(trace, observations, sessionTraces);
+  }, [trace, observations, sessionTraces]);
 
   // Apply level filtering as a cheap post-processing step
   const { filteredRoots, filteredSearchItems, hiddenObservationsCount } =
@@ -182,16 +186,22 @@ export function TraceDataProvider({
   // Merge scores with optimistic cache
   const mergedScores = useMergedScores(
     serverScores,
-    {
-      type: "trace",
-      traceId: trace.id,
-    },
+    sessionTraces
+      ? sessionTraces.map((entry) => ({
+          type: "trace" as const,
+          traceId: entry.id,
+        }))
+      : {
+          type: "trace",
+          traceId: trace.id,
+        },
     "target-and-child-scores",
   );
 
   const value = useMemo<TraceDataContextValue>(
     () => ({
       trace,
+      sessionTraces,
       observations,
       serverScores: serverScores,
       mergedScores,
@@ -210,6 +220,7 @@ export function TraceDataProvider({
     }),
     [
       trace,
+      sessionTraces,
       observations,
       serverScores,
       mergedScores,
