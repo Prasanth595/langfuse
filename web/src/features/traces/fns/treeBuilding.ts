@@ -553,10 +553,11 @@ export function buildTraceUiData(
   nodeMap: Map<string, TreeNode>;
   metricEmphasis: TraceMetricEmphasis;
 } {
-  let { roots, nodeMap } = buildTraceTree(trace, observations);
-  if (sessionTraces) {
-    roots = [];
-    nodeMap = new Map();
+  const { roots, nodeMap } = (() => {
+    if (!sessionTraces) return buildTraceTree(trace, observations);
+
+    const roots: TreeNode[] = [];
+    const nodeMap = new Map<string, TreeNode>();
     const observationIdCounts = new Map<string, number>();
     const observationsByTrace = new Map<string, ObservationReturnType[]>();
     for (const observation of observations) {
@@ -595,7 +596,8 @@ export function buildTraceUiData(
       roots.push(...tree.roots);
     }
     roots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-  }
+    return { roots, nodeMap };
+  })();
   const metricEmphasis = computeTraceMetricEmphasis(roots);
   if (sessionTraces) {
     metricEmphasis.wholeTraceNodeIds.clear();

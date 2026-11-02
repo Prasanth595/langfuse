@@ -30,10 +30,10 @@ const mocks = vi.hoisted(() => ({
 }));
 const timestamp = new Date("2026-10-23T12:00:00.000Z");
 
-vi.mock("@/src/features/traces/contexts/TraceDataContext", () => ({
+vi.mock("@/src/features/traces/contexts/TraceDataProvider", () => ({
   useTraceData: () => mocks.traceData(),
 }));
-vi.mock("@/src/features/traces/contexts/SelectionContext", () => ({
+vi.mock("@/src/features/traces/contexts/SelectionProvider", () => ({
   useSelection: () => ({ openDetails: mocks.openDetails }),
 }));
 vi.mock("@/src/utils/api", () => ({

@@ -2,7 +2,7 @@ import { type ComponentProps } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TracePage } from "./TracePage";
-import type Page from "@/src/components/layouts/page";
+import type Page from "@/src/components/layouts/Page";
 
 const mocks = vi.hoisted(() => ({
   router: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("@/src/features/traces/components/TraceDetailActions", () => ({
 vi.mock("@/src/features/traces/components/TraceDetailBody", () => ({
   TraceDetailBody: () => <div>Trace detail body</div>,
 }));
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({ headerProps, children }: ComponentProps<typeof Page>) => (
     <div data-testid="page" data-item-type={headerProps.itemType}>
       {headerProps.titleControl}

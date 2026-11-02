@@ -14,6 +14,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useReadPath } from "@/src/features/events";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { ConnectedTraceScopeToggle } from "./components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
+import { resolveTraceScope } from "./fns/resolveTraceScope";
 
 export function TracePage({
   traceId,
@@ -98,25 +99,29 @@ export function TracePage({
     <Badge color="primary" text="Public" />
   ) : undefined;
   const sessionId = trace.data.sessionId;
-  const canSelectSession =
-    internalFeaturesEnabled && isV4 && hasProjectAccess && !!sessionId;
-  const isSessionScope =
-    router.query.aggregation === "session" && canSelectSession;
+  const { canSelectSession, isSessionScope, showScopeToggle } =
+    resolveTraceScope({
+      internalFeaturesEnabled,
+      isV4,
+      isProjectMember: hasProjectAccess,
+      sessionId,
+      aggregation: router.query.aggregation,
+      context: traceContext,
+    });
 
   return (
     <Page
       headerProps={{
         // Trace titles follow the route while the previous trace is kept as placeholder.
-        title: isSessionScope ? sessionId : traceId,
+        title: isSessionScope && sessionId ? sessionId : traceId,
         itemType: isSessionScope ? "SESSION" : "TRACE",
-        titleControl:
-          isV4 && internalFeaturesEnabled ? (
-            <ConnectedTraceScopeToggle
-              value={isSessionScope ? "session" : "trace"}
-              canSelectSession={canSelectSession}
-              observations={trace.data.observations}
-            />
-          ) : undefined,
+        titleControl: showScopeToggle ? (
+          <ConnectedTraceScopeToggle
+            value={isSessionScope ? "session" : "trace"}
+            canSelectSession={canSelectSession}
+            observations={trace.data.observations}
+          />
+        ) : undefined,
         divider: false,
         breadcrumb: [
           {

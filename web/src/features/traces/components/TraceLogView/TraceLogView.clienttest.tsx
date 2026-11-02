@@ -9,13 +9,13 @@ const mocks = vi.hoisted(() => ({
   useAllObservationsIO: vi.fn(),
 }));
 
-vi.mock("@/src/features/traces/contexts/TraceDataContext", () => ({
+vi.mock("@/src/features/traces/contexts/TraceDataProvider", () => ({
   useTraceData: mocks.useTraceData,
 }));
-vi.mock("@/src/features/traces/contexts/ViewPreferencesContext", () => ({
+vi.mock("@/src/features/traces/contexts/ViewPreferencesProvider", () => ({
   useViewPreferences: () => ({ logViewMode: "chronological" }),
 }));
-vi.mock("@/src/features/traces/contexts/JsonExpansionContext", () => ({
+vi.mock("@/src/features/traces/contexts/JsonExpansionProvider", () => ({
   useJsonExpansion: () => ({
     formattedExpansion: {},
     setFormattedFieldExpansion: vi.fn(),

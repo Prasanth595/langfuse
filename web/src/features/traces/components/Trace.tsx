@@ -48,6 +48,7 @@ import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 import { api } from "@/src/utils/api";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
+import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 import {
   adaptEventsToTraceFormat,
   type EventsTraceObservation,
@@ -153,13 +154,14 @@ function TraceWithSelection({
   const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const [aggregation] = useQueryParam("aggregation", StringParam);
-  const canSelectSession =
-    internalFeaturesEnabled &&
-    isV4 &&
-    isProjectMember &&
-    !!trace.sessionId &&
-    context !== "annotation";
-  const scopeToSession = aggregation === "session" && canSelectSession;
+  const { isSessionScope: scopeToSession } = resolveTraceScope({
+    internalFeaturesEnabled,
+    isV4,
+    isProjectMember,
+    sessionId: trace.sessionId,
+    aggregation,
+    context,
+  });
   const sessionQuery = api.sessions.observationsForSessionFromEvents.useQuery(
     { projectId, sessionId: trace.sessionId ?? "" },
     {
@@ -286,10 +288,10 @@ function TraceWithSelection({
     <div className="flex h-full min-h-0 w-full flex-col">
       {scopeToSession && (sessionQuery.isLoading || sessionQuery.isError) && (
         <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
-          {scopeToSession && sessionQuery.isLoading && (
+          {sessionQuery.isLoading && (
             <span role="status">Loading session…</span>
           )}
-          {scopeToSession && sessionQuery.isError && (
+          {sessionQuery.isError && (
             <span role="alert">
               Session unavailable.{" "}
               <button

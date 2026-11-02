@@ -11,6 +11,7 @@ import { useRef } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { ConnectedTraceScopeToggle } from "@/src/features/traces/components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -45,12 +46,15 @@ export const TablePeekViewObservationDetail = (
   });
   const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
   const sessionId = trace.data?.sessionId;
-  const isSessionScope =
-    internalFeaturesEnabled &&
-    props.isV4 &&
-    isProjectMember &&
-    router.query.aggregation === "session" &&
-    !!sessionId;
+  const { canSelectSession, isSessionScope, showScopeToggle } =
+    resolveTraceScope({
+      internalFeaturesEnabled,
+      isV4: !!props.isV4,
+      isProjectMember,
+      sessionId,
+      aggregation: router.query.aggregation,
+      context: "peek",
+    });
 
   const actionProps = {
     trace: trace.data,
@@ -81,12 +85,12 @@ export const TablePeekViewObservationDetail = (
     <TablePeekView
       {...props}
       itemType={isSessionScope ? "SESSION" : props.itemType}
-      title={isSessionScope ? sessionId : traceId}
+      title={isSessionScope && sessionId ? sessionId : traceId}
       titleControl={
-        props.isV4 && internalFeaturesEnabled ? (
+        showScopeToggle ? (
           <ConnectedTraceScopeToggle
             value={isSessionScope ? "session" : "trace"}
-            canSelectSession={isProjectMember && !!sessionId}
+            canSelectSession={canSelectSession}
             observations={trace.data?.observations ?? []}
           />
         ) : undefined

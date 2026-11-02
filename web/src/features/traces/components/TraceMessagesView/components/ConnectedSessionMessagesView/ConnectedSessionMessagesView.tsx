@@ -3,7 +3,7 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { useRouter } from "next/router";
 import { ErrorBoundary } from "@sentry/nextjs";
 import { api } from "@/src/utils/api";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
