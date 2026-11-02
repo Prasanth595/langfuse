@@ -2,7 +2,7 @@
   "name": "web",
   "version": "4.72.0",
   "private": true,
-  "license": "MIT",
+  "license": "MIT AND LicenseRef-Langfuse-Enterprise",
   "engines": {
     "node": "24"
   },
