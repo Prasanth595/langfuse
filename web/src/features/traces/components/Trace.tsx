@@ -209,9 +209,14 @@ function TraceWithSelection({
   const scopedObservations = sessionData?.observations ?? loadedObservations;
 
   // Fetch comment counts using existing hook
-  const { observationCommentCounts, traceCommentCount } = useTraceComments({
+  const {
+    observationCommentCounts,
+    traceCommentCount,
+    sessionTraceCommentCounts,
+  } = useTraceComments({
     projectId,
     traceId: trace.id,
+    sessionId: sessionData ? (trace.sessionId ?? undefined) : undefined,
   });
 
   // Merge observation + trace comments into single Map for TraceDataContext
@@ -220,8 +225,16 @@ function TraceWithSelection({
     if (traceCommentCount > 0) {
       map.set(trace.id, traceCommentCount);
     }
+    for (const [traceId, count] of sessionTraceCommentCounts) {
+      map.set(traceId, count);
+    }
     return map;
-  }, [observationCommentCounts, traceCommentCount, trace.id]);
+  }, [
+    observationCommentCounts,
+    traceCommentCount,
+    sessionTraceCommentCounts,
+    trace.id,
+  ]);
 
   // A selected observation outside the loaded list joins the tree instead of
   // being invisible in it.

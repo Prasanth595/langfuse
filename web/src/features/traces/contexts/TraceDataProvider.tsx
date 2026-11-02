@@ -144,6 +144,19 @@ export function TraceDataProvider({
     return buildTraceUiData(trace, observations, sessionTraces);
   }, [trace, observations, sessionTraces]);
 
+  const nodeComments = useMemo(() => {
+    if (!sessionTraces) return comments;
+    // Detail views still read raw object IDs; navigators read tree node IDs.
+    const counts = new Map(comments);
+    for (const node of uiData.nodeMap.values()) {
+      const objectId =
+        node.type === "TRACE" ? node.traceId : node.observationId;
+      const count = objectId ? comments.get(objectId) : undefined;
+      if (count !== undefined) counts.set(node.id, count);
+    }
+    return counts;
+  }, [comments, sessionTraces, uiData.nodeMap]);
+
   // Apply level filtering as a cheap post-processing step
   const { filteredRoots, filteredSearchItems, hiddenObservationsCount } =
     useMemo(() => {
@@ -216,7 +229,7 @@ export function TraceDataProvider({
       detachedObservationIsMisplaced,
       truncatedAtObservations,
       isPlaceholderData,
-      comments,
+      comments: nodeComments,
     }),
     [
       trace,
@@ -235,7 +248,7 @@ export function TraceDataProvider({
       isPlaceholderData,
       uiData.nodeMap,
       uiData.metricEmphasis,
-      comments,
+      nodeComments,
     ],
   );
 
