@@ -7,6 +7,26 @@ flags and transcript-metrics switch below default to `false`; an ordinary releas
 needs no infrastructure changes. The four enablement flags stay commented in env
 templates. The local dev template sets the idle time below.
 
+## Recording trace-rule selections
+
+Topics-enabled projects record selections under `{trace-dispatch:<shard>}`,
+keyed by JSON `[projectId, traceId]`. These selections are not consumed yet.
+Each ingestion invocation collects span activity in its own worker and awaits
+the flush before returning. `recordTraceActivity` combines span starts into
+per-trace min/max bounds; Lua merges bounds and selected rule IDs across workers.
+Filtering and sampling happen before collection. Both trace writers resolve
+project idle time through `resolveTraceIdleMs`.
+
+| Map | Contents | Retention |
+| --- | --- | --- |
+| `bounds` | `{ minStart, maxStart, expiresAt }`, including observations before a match. | 24 hours after the latest arrival. |
+| `record` | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated. | Two hours past due. |
+| `due` | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due. |
+
+After scheduling existing work, each dispatcher pass scans `bounds` and cleans
+these maps in bounded Lua batches using the existing retention settings.
+Key TTLs also reclaim inactive shards.
+
 ## Readiness requirements
 
 - Every admitted event refreshes the trace's idle deadline. Tracking uses the

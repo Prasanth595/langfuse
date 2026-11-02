@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  getTracingReadinessSettings,
   logger,
   QueueJobs,
   redis,
@@ -16,6 +15,7 @@ import {
 } from "@langfuse/shared/topics/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+import { cleanupTraceRuleRecording } from "./traceRuleRecording";
 import {
   ACKNOWLEDGE_SCRIPT,
   CLEANUP_SIZE,
@@ -26,6 +26,7 @@ import {
   getTraceBatchShard,
   HYDRATE_SCRIPT,
   readinessScriptHashes,
+  resolveTraceIdleMs,
   SNAPSHOT_SCRIPT,
   TRACK_SCRIPT,
 } from "./traceBatchReadiness";
@@ -263,25 +264,6 @@ async function resolveTopicsProcessingActive(
   }
 }
 
-async function resolveTraceIdleMs(projectId: string): Promise<number> {
-  let traceIdleMs: number | null = null;
-  try {
-    ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
-  } catch (error) {
-    recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
-    logger.warn("Failed to read trace idle time, using the default", {
-      projectId,
-      error,
-    });
-  }
-  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
-  // A due time past the pending TTL would expire the trace before dispatch.
-  const cap =
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
-    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
-  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
-}
-
 export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   private stopping = false;
   private activeDispatch: Promise<void> | null = null;
@@ -335,7 +317,10 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     )
       return;
     const startedAt = Date.now();
-    const dispatch = this.withLock(() => this.dispatchDue()).then(() => {});
+    const dispatch = this.withLock(async () => {
+      await this.dispatchDue();
+      await this.cleanupRecordedRules();
+    }).then(() => {});
     this.activeDispatch = dispatch;
     try {
       await dispatch;
@@ -345,6 +330,26 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     // PeriodicRunner waits this delay after completion. Account for work time
     // to maintain the configured start cadence without overlapping runs.
     return Math.max(0, this.defaultIntervalMs - (Date.now() - startedAt));
+  }
+
+  private async cleanupRecordedRules(): Promise<void> {
+    if (!redis) throw new Error("Trace batching requires Redis");
+    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
+      let cleanup = { cursor: "0", pendingRemaining: false };
+      do {
+        if (this.stopping) return;
+        await this.extendLockOnProgress();
+        try {
+          cleanup = await cleanupTraceRuleRecording(shard, cleanup.cursor);
+        } catch (error) {
+          logger.warn("Failed to clean up recorded trace rules", {
+            shard,
+            error,
+          });
+          break;
+        }
+      } while (cleanup.cursor !== "0" || cleanup.pendingRemaining);
+    }
   }
 
   private async dispatchDue(): Promise<void> {

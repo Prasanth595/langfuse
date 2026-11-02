@@ -7,12 +7,11 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { fetchEvalRules } from "../evaluation/fetchEvalRules";
 import {
-  fetchObservationEvalRules,
-  isObservationAllowedForQueuedObservationEvals,
-  scheduleObservationEvals,
-  createObservationEvalSchedulerDeps,
-} from "../evaluation/observationEval";
+  scheduleEvals,
+  createEvalSchedulerDeps,
+} from "../evaluation/scheduleEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
   createDirectOtelMediaTargets,
@@ -55,7 +54,7 @@ export async function processOtelEvents({
 }: ProcessOtelEventsParams): Promise<OtelMediaPresence | undefined> {
   // Process events for observation evals and direct event writes
   // This phase handles two independent concerns:
-  // 1. Scheduling observation-level evals (if eval configs exist)
+  // 1. Scheduling observation evals and recording trace-rule selections
   // 2. Writing directly to events table (if SDK version requirements are met)
   //
   // Both require enriched event records with trace-level attributes
@@ -65,21 +64,16 @@ export async function processOtelEvents({
     return;
   }
 
-  const evalConfigs = await fetchObservationEvalRules(projectId).catch(
-    (error) => {
-      traceException(error);
-      logger.warn(
-        `Failed to fetch observation eval configs for project ${projectId}`,
-        error,
-      );
-
-      return [];
-    },
-  );
-  const hasEvalConfigs = evalConfigs.length > 0;
+  const rules = await fetchEvalRules(projectId).catch((error) => {
+    traceException(error);
+    logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
+    return { observationRules: [], traceTranscriptRules: [] };
+  });
+  const hasRules =
+    rules.observationRules.length > 0 || rules.traceTranscriptRules.length > 0;
 
   // Early exit if no processing needed
-  if (!hasEvalConfigs && !shouldWriteToEventsTable) {
+  if (!hasRules && !shouldWriteToEventsTable) {
     return;
   }
 
@@ -109,9 +103,8 @@ export async function processOtelEvents({
     });
   }
 
-  // Create scheduler deps only if we have eval configs
-  const evalSchedulerDeps = hasEvalConfigs
-    ? createObservationEvalSchedulerDeps()
+  const schedulerDeps = hasRules
+    ? createEvalSchedulerDeps(projectId, rules)
     : null;
 
   const traceBatchEvents: {
@@ -140,27 +133,20 @@ export async function processOtelEvents({
         return;
       }
 
-      // Step 2: Schedule observation evals (independent of event writes).
-      // Internal langfuse-* environments are excluded to prevent
-      // eval-on-eval recursion, except experiment run-item roots; see
-      // isObservationAllowedForQueuedObservationEvals.
-      if (hasEvalConfigs && evalSchedulerDeps) {
+      // Step 2: Schedule evaluations independently of event writes.
+      if (schedulerDeps) {
         try {
-          const observation =
-            convertEventRecordToObservationForEval(eventRecord);
-
-          if (isObservationAllowedForQueuedObservationEvals(observation)) {
-            await scheduleObservationEvals({
-              observation,
-              configs: evalConfigs,
-              schedulerDeps: evalSchedulerDeps,
-            });
-          }
+          await scheduleEvals({
+            observation: convertEventRecordToObservationForEval(eventRecord),
+            startTimeISO: eventInput.startTimeISO,
+            rules,
+            schedulerDeps,
+          });
         } catch (error) {
           traceException(error);
 
           logger.error(
-            `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+            `Failed to schedule evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
             { error, fileKey },
           );
         }
@@ -191,6 +177,20 @@ export async function processOtelEvents({
       }
     }),
   );
+
+  if (schedulerDeps) {
+    try {
+      // Flush this invocation's local buffer; Redis merges activity across workers.
+      await schedulerDeps.flushTraceActivity();
+    } catch (error) {
+      traceException(error);
+      logger.error("Failed to record trace rule selections", {
+        projectId,
+        error,
+        fileKey,
+      });
+    }
+  }
 
   if (traceBatchEvents.length > 0) {
     // The writer has accepted these records; its flush completes separately.
