@@ -1,5 +1,4 @@
 import {
-  listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
@@ -67,7 +66,6 @@ type AssembledTraceInput = {
   traceId: string;
   sessionId: string | null;
   traceTimestamp: string;
-  jobEnqueuedAt: Date;
   environment: string;
   traceName: string;
   transcript: Transcript | null;
@@ -83,16 +81,15 @@ type AssembledTraceResult = {
 };
 
 /**
- * Summarizes one trace from the transcript the batch job already assembled,
- * with one model call for all of its configured facets. Does not load
- * observations again or write; the batch job stores the returned rows.
+ * Summarizes one stored transcript with one model call for all given facets.
+ * Does not write; rewriting a stored key replaces the row.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
 ): Promise<AssembledTraceResult> {
   if (isInternalEvalEnvironment(input.environment))
     return { outcome: "disabled", rows: [] };
-  // Trace-batch jobs span projects; the baggage tags this trace's spans and logs.
+  // The baggage tags this trace's spans and logs with its project.
   const projectContext = contextWithLangfuseProps({
     projectId: input.projectId,
   });
@@ -136,30 +133,9 @@ async function summarizeEnabledTrace(
     ...facets.filter((facet) => facet.isBuiltIn),
     ...facets.filter((facet) => !facet.isBuiltIn),
   ];
-  const timestamp = Date.parse(input.traceTimestamp);
-  const timeRange = {
-    from: new Date(timestamp),
-    to: new Date(timestamp + 1),
-  };
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
-    const stored = await listTopicSummaries(
-      input.projectId,
-      {
-        traceIds: [input.traceId],
-        facetId: version.facetId,
-        facetVersion: version.version,
-      },
-      timeRange,
-    );
-    if (
-      stored.some(
-        (summary) =>
-          Date.parse(summary.processedAt) >= input.jobEnqueuedAt.getTime(),
-      )
-    )
-      continue;
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (pending.length === 0) return { outcome: "unchanged", rows: [] };
