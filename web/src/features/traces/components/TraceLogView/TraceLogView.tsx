@@ -99,6 +99,7 @@ export const TraceLogView = ({
     roots: contextRoots,
     observations: contextObservations,
     sessionTraces,
+    truncatedAtObservations,
   } = useTraceData();
   const roots = useMemo(
     () =>
@@ -343,6 +344,17 @@ export const TraceLogView = ({
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
+      {sessionTraces && !!truncatedAtObservations && (
+        <div
+          role="status"
+          className="text-muted-foreground bg-muted/40 shrink-0 border-b px-3 py-2 text-xs"
+        >
+          Logs may be incomplete. Only the first{" "}
+          {truncatedAtObservations.toLocaleString()} observations in this
+          session are loaded, ordered by start time. Find later observations in
+          the observations table.
+        </div>
+      )}
       {/* Toolbar with search and actions */}
       <LogViewToolbar
         searchQuery={searchQuery}
