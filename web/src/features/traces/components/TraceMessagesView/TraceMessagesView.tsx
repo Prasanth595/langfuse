@@ -11,7 +11,7 @@ import { SessionConversationTimeline } from "@/src/features/sessions/components/
 import { getSessionConversationEntries } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionConversationEntries";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
-import { ConnectedSessionMessagesView } from "./components/ConnectedSessionMessagesView/ConnectedSessionMessagesView";
+import { ConnectedSessionMessagesView } from "../ConnectedSessionMessagesView/ConnectedSessionMessagesView";
 
 export function TraceMessagesView() {
   const { trace, sessionTraces, isPlaceholderData } = useTraceData();

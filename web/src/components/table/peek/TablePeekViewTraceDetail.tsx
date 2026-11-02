@@ -10,7 +10,7 @@ import {
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
-import { ConnectedTraceScopeToggle } from "@/src/features/traces/components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
+import { TraceScopeToggle } from "@/src/features/traces/components/TraceScopeToggle/TraceScopeToggle";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 
@@ -84,10 +84,31 @@ export const TablePeekViewTraceDetail = (
       title={isSessionScope && sessionId ? sessionId : traceId}
       titleControl={
         showScopeToggle ? (
-          <ConnectedTraceScopeToggle
+          <TraceScopeToggle
             value={isSessionScope ? "session" : "trace"}
             canSelectSession={canSelectSession}
-            observations={trace.data?.observations ?? []}
+            onValueChange={(next) => {
+              const query = { ...router.query };
+              if (next === "session") {
+                query.aggregation = "session";
+              } else {
+                delete query.aggregation;
+                if (
+                  !trace.data?.observations.some(
+                    (observation) => observation.id === query.observation,
+                  )
+                ) {
+                  delete query.observation;
+                }
+              }
+              void router.replace(
+                { pathname: router.pathname, query },
+                undefined,
+                {
+                  shallow: true,
+                },
+              );
+            }}
           />
         ) : undefined
       }

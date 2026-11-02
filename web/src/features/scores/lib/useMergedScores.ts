@@ -14,10 +14,10 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
  * - Updates existing scores with cached values
  * - Removes deleted scores
  *
- * Used in trace detail annotation drawer for flat score list.
+ * Provides the trace UI with scores including local annotation changes.
  *
  * @param serverScores - Flat scores from tRPC query
- * @param target - Target to filter cache by (traceId, observationId, sessionId)
+ * @param target - One score target, or all displayed trace targets in session view.
  * @param mode - Describes whether to include child observation scores or only target scores. Defaults to only target scores.
  * @returns ScoreDomain[] with all cache operations applied
  */
@@ -28,30 +28,46 @@ export function useMergedScores(
 ): WithStringifiedMetadata<ScoreDomain>[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
-  const targets = useMemo(
-    () => (Array.isArray(target) ? target : [target]),
-    [target],
-  );
-  const cachedScores = targets.flatMap((current) =>
-    getAllForTarget(mode, {
-      traceId: current.type === "trace" ? current.traceId : undefined,
-      observationId:
-        current.type === "trace" ? current.observationId : undefined,
-      sessionId: current.type === "session" ? current.sessionId : undefined,
-    }),
-  );
+  const cachedScores = useMemo(() => {
+    if (!Array.isArray(target)) {
+      return getAllForTarget(mode, {
+        traceId: target.type === "trace" ? target.traceId : undefined,
+        observationId:
+          target.type === "trace" ? target.observationId : undefined,
+        sessionId: target.type === "session" ? target.sessionId : undefined,
+      });
+    }
+
+    // Session view overlays local changes for every displayed trace.
+    return target.flatMap((current) =>
+      getAllForTarget(mode, {
+        traceId: current.type === "trace" ? current.traceId : undefined,
+        observationId:
+          current.type === "trace" ? current.observationId : undefined,
+        sessionId: current.type === "session" ? current.sessionId : undefined,
+      }),
+    );
+  }, [target, mode, getAllForTarget]);
 
   // Filter server scores based on mode and target
   const filteredServerScores = useMemo(() => {
+    if (!Array.isArray(target)) {
+      return filterScoresByTarget(serverScores, target, mode);
+    }
+
+    if (target.length === 0) return [];
+    // This mode receives server scores already scoped by the caller.
+    if (mode === "target-and-child-scores") return serverScores;
+
     const ids = new Set(
-      targets.flatMap((current) =>
+      target.flatMap((current) =>
         filterScoresByTarget(serverScores, current, mode).map(
           (score) => score.id,
         ),
       ),
     );
     return serverScores.filter((score) => ids.has(score.id));
-  }, [serverScores, targets, mode]);
+  }, [serverScores, target, mode]);
 
   // Build deletedIds Set
   const deletedIds = useMemo(() => {

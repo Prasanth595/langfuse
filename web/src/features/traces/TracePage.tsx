@@ -13,7 +13,7 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useReadPath } from "@/src/features/events";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { ConnectedTraceScopeToggle } from "./components/ConnectedTraceScopeToggle/ConnectedTraceScopeToggle";
+import { TraceScopeToggle } from "./components/TraceScopeToggle/TraceScopeToggle";
 import { resolveTraceScope } from "./fns/resolveTraceScope";
 
 export function TracePage({
@@ -116,10 +116,31 @@ export function TracePage({
         title: isSessionScope && sessionId ? sessionId : traceId,
         itemType: isSessionScope ? "SESSION" : "TRACE",
         titleControl: showScopeToggle ? (
-          <ConnectedTraceScopeToggle
+          <TraceScopeToggle
             value={isSessionScope ? "session" : "trace"}
             canSelectSession={canSelectSession}
-            observations={trace.data.observations}
+            onValueChange={(next) => {
+              const query = { ...router.query };
+              if (next === "session") {
+                query.aggregation = "session";
+              } else {
+                delete query.aggregation;
+                if (
+                  !trace.data?.observations.some(
+                    (observation) => observation.id === query.observation,
+                  )
+                ) {
+                  delete query.observation;
+                }
+              }
+              void router.replace(
+                { pathname: router.pathname, query },
+                undefined,
+                {
+                  shallow: true,
+                },
+              );
+            }}
           />
         ) : undefined,
         divider: false,
